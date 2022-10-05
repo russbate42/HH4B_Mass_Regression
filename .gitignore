@@ -1,5 +1,6 @@
 # Plots from EDA
 data/Plots/*
+mass_regression/Plots/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,3 +1,5 @@
+#!/bin/bash
+
 ''' All of our ml utilities can go here.. '''
 import numpy as np
 import tensorflow as tf
@@ -45,3 +47,16 @@ def dict_from_tree(tree, branches=None, np_branches=None):
         raise ValueError("No branches passed to function.")
         
     return dictionary
+
+def tvt_num(data, tvt=(75, 10, 15)):
+    ''' Function designed to output appropriate numbers for traning validation and testing given
+    a variable length input. TVT expressed as ratios and do not need to add to 100. '''
+    tot = len(data)
+    train, val, test = tvt
+    tvt_sum = train + val + test
+    
+    train_rtrn = round(train*tot/tvt_sum)
+    val_rtrn = round(val*tot/tvt_sum)
+    test_rtrn = tot - train_rtrn - val_rtrn
+    
+    return train_rtrn, val_rtrn, test_rtrn
