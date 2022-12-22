@@ -60,3 +60,20 @@ def tvt_num(data, tvt=(75, 10, 15)):
     test_rtrn = tot - train_rtrn - val_rtrn
     
     return train_rtrn, val_rtrn, test_rtrn
+
+def round_to_sigfigs(value, sigfig=3):
+    ''' Function to round to significant figures.  '''
+    # isntantiate array with same dimensions, return zero where values
+    # are zero!
+    value = np.array(value)
+    returnval = np.zeros(value.shape)
+    
+    # only do operations on nonzero as we deal with log
+    nz_bool = value != 0.0
+    exp = np.floor(np.log10(np.abs(value[nz_bool]))).astype(int)
+    mantissa = value[nz_bool]/10.0**exp
+    new_mantissa = np.round(mantissa, decimals=sigfig-1)
+
+    # return the mantissa back to the appropriate exponential
+    returnval[nz_bool] = np.multiply(new_mantissa, 10.0**exp)
+    return returnval

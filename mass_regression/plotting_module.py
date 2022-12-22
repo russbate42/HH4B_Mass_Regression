@@ -1,8 +1,4 @@
 
-##========================================================##
-## Helper file for some of the long plotting dictionaries ##
-##========================================================##
-
 import numpy as np
 
 ## This list is for all the raw input variables
@@ -146,4 +142,7 @@ plot_norm_list.append( # ungrtrk500
 plot_norm_list.append( # numConstituents
     {'bins' : np.linspace(-2.5,4,num=num_bin_edges, endpoint=True),
         'semilogy' : False})
+
+
+
 

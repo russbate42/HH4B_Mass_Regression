@@ -1,5 +1,7 @@
 # Plots from EDA
 data/Plots/*
+data/*.root
+data/*.png
 mass_regression/Plots/*
 data/histograms/*
 mass_regression/Data/*
