@@ -13,10 +13,10 @@ import numpy as np
 import uproot as ur
 import awkward as ak
 import matplotlib.pyplot as plt
-import argparse, sys, os, subprocess, pickle
+import argparse, sys, os, subprocess, pickle, warnings
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
-from array_production import process_NTuples
+from array_production import process_NTuples, err_process_NTuples
 
 print('\n===========================')
 print('==  HH4B MASS REGRESSION ==')
@@ -144,11 +144,18 @@ if not NFiles is None:
 else:
     NFiles == NAvailableFiles
 
+if not NFiles is None:
+    if Processes > NFiles:
+        warnings.warn('Requested Processes greater than number of files'\
+                      +'\nRequested {}'.format(Processes)
+                      +'\nReducing Processes to {}'.format(NFiles))
+        Processes = NFiles
+    
 file_list_full = []
 for filename in file_list_raw:
     file_list_full.append(InDir+filename.rstrip())
 
-if Verbose or Debug:
+if (Verbose or Debug) and not Test:
     print('\nPrinting files in file list.')
     print('--'*20+'\n')
     for file in file_list_full:
@@ -161,7 +168,42 @@ if Verbose or Debug:
 #-----------------------------------#
 if Test:
     # maybe just run one file here
-    print('\nDone!\n')
+    if Verbose:
+        print('\nRunning in testing mode..')
+        print('--'*20+'\n')
+    
+    results_dict_raw = dict()
+    results_returned = dict()
+    
+    file = file_list_full[0]
+    with ProcessPoolExecutor(max_workers=Workers) as e:
+        
+        arr_prefix = array_name+'_{}'.format(0)
+
+        if Verbose:
+            print('Submitting process_NTuples to ProcessPoolExecutor: [{}]'.format(0))
+            print('    File: {}'.format(file))
+            print('    Array prefix: {}'.format(arr_prefix))
+            print('    Destination: {}\n'.format(OutDir))
+
+        results_dict_raw[0] = e.submit(process_NTuples, 
+                                       full_fpath=file,
+                                       array_prefix=arr_prefix,
+                                       dest=OutDir,
+                                       Verbose=True
+                                      )
+
+    if Verbose:
+        print('Processes finished. Showing results!\n')
+
+    for i in range(len(results_dict_raw)):
+        res = results_dict_raw[i]
+        results_returned[i] = res.result()
+        if Verbose:
+            print('Result type: {}'.format(type(res)))
+            print('Result: {}'.format(res))
+            print(res.result())
+    sys.exit('\nDone!\n')
 
 
 ## PROCESSES ONLY
@@ -180,17 +222,20 @@ if Processes and not Threading:
             arr_prefix = array_name+'_{}'.format(i)
             
             if Verbose:
-                print('Submitting process_NTuples to ProcessPoolExecutor: [{}]'.format(i))
+                print('Submitting err_process_NTuples to '\
+                      +'ProcessPoolExecutor: [{}]'.format(i))
                 print('    File: {}'.format(file))
                 print('    Array prefix: {}'.format(arr_prefix))
                 print('    Destination: {}\n'.format(OutDir))
                 
-            results_dict_raw[i] = e.submit(process_NTuples, 
+            results_dict_raw[i] = e.submit(err_process_NTuples, 
                                            full_fpath=file,
                                            array_prefix=arr_prefix,
                                            dest=OutDir
                                           )
-
+        if Verbose:
+            print(' .. Waiting on ProcessPoolExecutor ..\n')
+            
     if Verbose:
         print('Processes finished. Showing results!\n')
 
@@ -198,6 +243,7 @@ if Processes and not Threading:
         res = results_dict_raw[i]
         results_returned[i] = res.result()
         if Verbose:
+            print('\nProcess: {}'.format(i))
             print('Result type: {}'.format(type(res)))
             print('Result: {}'.format(res))
             print(res.result())

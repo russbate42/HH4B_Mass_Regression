@@ -1,0 +1,30 @@
+##================================================================================================
+## This file contains descriptions of MC generated signals and background for boosted VBF analysis
+##================================================================================================
+
+## dataset_number / physics_short / crossSection / genFiltEff / kFactor / relUncertUP / relUncertDOWN / generator_name / etag
+
+## ORDER:
+## nonresonant_vbf_pythia
+## resonant_vbf_pythia
+## dijet_b_filtered_bkgd
+## dijet_bkgd
+## ttbar_ht_filtered_bkgd
+## ttbar_inclusive_bkgd
+## vbf_ggf_H_bkgd
+## vbf_h_bkgd
+## vbf_ttH_bkgd
+## vbf_VH_bkgd
+
+## dataset_number/I:physics_short/C:crossSection/D:genFiltEff/D:kFactor/D:relUncertUP/D:relUncertDOWN/D:generator_name/C:etag/C
+
+502970		MGPy8EG_hh_bbbb_vbf_novhh_l1cvv1cv1		0.0011836		1.000000E+00		1.0		0.0		0.0		MadGraph(v.2.7.3p3.atlas6)+Pythia8(v.244p3.rangefix)+EvtGen(v.1.7.0)		e8263
+512651		MGPy8EG_hh_bbbb_vbf_novhh_hbsm_1000GeV		1.6485		1.000000E+00		1.0		0.0		0.0		MadGraph(v.2.9.9.atlas2)+Pythia8(v.306)+EvtGen(v.1.7.0)		e8448
+800285		Py8EG_A14NNPDF23LO_jetjet_JZ2_4jets15_2bjets		2433200000.0		6.041170E-05		1.0		0.0		0.0		Pythia8(v.244p3)+EvtGen(v.1.7.0)		e8153
+364700		Pythia8EvtGen_A14NNPDF23LO_jetjet_JZ0WithSW		78050000000.0		9.753257E-01		1.0		0.0		0.0		Pythia8(v.235)+EvtGen(v.1.6.0)		e7142
+364700		Pythia8EvtGen_A14NNPDF23LO_jetjet_JZ0WithSW		78420000000.0		9.7557E-01		1.0		0.0		0.0		Pythia8(v8.230)+EvtGen(v1.6.0)		e6364
+410470		PhPy8EG_A14_ttbar_hdamp258p75_nonallhad		729.77		5.4380E-01		1.13975636159		0.0		0.0		Powheg+Pythia8(v8.230)+EvtGen(v1.6.0)		e6337
+410470		PhPy8EG_A14_ttbar_hdamp258p75_nonallhad		729.77		5.4380E-01		1.13975636159		0.0		0.0		Powheg+Pythia8(v8.230)+EvtGen(v1.6.0)		e6337
+345949		PowhegPythia8EvtGen_NNPDF30_AZNLOCTEQ6L1_VBFH125_bb		2.18242752		1.000000E+00		1.0		0.0		0.0		Powheg+Pythia8(v.230)+EvtGen		e7252
+346343		PhPy8EG_A14NNPDF23_NNPDF30ME_ttH125_allhad		0.23844		1.000000E+00		1.0		0.0		0.0		Powheg+Pythia8(v.230)+EvtGen(v.1.6.0)		e7148
+346639		PowhegPythia8EvtGen_NNPDF3_AZNLO_WmH125J_MINLO_qqbb_VpT		0.3558		1.000000E+00		1.0		0.0		0.0		Powheg(v.2_r3376)+Pythia8(v.240p3)+EvtGen(v.1.6.0)		e7745

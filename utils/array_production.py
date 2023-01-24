@@ -33,7 +33,7 @@ script running
 import numpy as np
 import uproot as ur
 import awkward as ak
-import sys, os, subprocess, time
+import sys, os, subprocess, time, traceback
 from time import perf_counter as cput
 # import uproot as ur
 # import awkward as ak
@@ -95,14 +95,14 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
         # just use jet pt as an arbitrary variable to look at how many jets
         boostedJets_pt = ak.to_numpy(boostedJets_dict['boostedJets_pt'][i])
 
-        if len(boostedJets_pt) >=2:
+        if len(boostedJets_pt) >= 2:
             gt_twoJets[i] = True
 
     n2jets = np.count_nonzero(gt_twoJets)
     t1 = cput()
     twojets_cut_time = t1 - t0
     if Verbose:
-        print('Number of events with > 2 jets: {}'.format(n2jets))
+        print('Number of events with >= 2 jets: {}'.format(n2jets))
         print('Number of events total:         {}'.format(nEvents))
         print('                                {:5.2f} %'.format(n2jets*100/nEvents))
         print('time: {:8.2f} (s)'.format(twojets_cut_time))
@@ -129,6 +129,9 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
 
         # create truth jet coordinate array
         nTruthJets = ak.to_numpy(truthJets_dict['truthjet_antikt10_m'][evt]).shape[0]
+        nBoostedJets = ak.to_numpy(boostedJets_dict['boostedJets_pt'][evt]).shape[0]
+        if nTruthJets < 2 or nBoostedJets < 2:
+            continue
         truthJet_coords = np.empty((nTruthJets, 2))
         truthJet_coords[:,0] = ak.to_numpy(truthJets_dict['truthjet_antikt10_eta'][evt])
         truthJet_coords[:,1] = ak.to_numpy(truthJets_dict['truthjet_antikt10_phi'][evt])
@@ -138,6 +141,10 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
             boostedJets_dict['boostedJets_eta'][evt][0],
             boostedJets_dict['boostedJets_phi'][evt][0]]
         )
+        if Verbose:
+            print('Truth Jet Coordinates: {}'.format(truthJet_coords))
+            print('Leading Boosted Jet Coordinates: {}'.format(
+                BoostedJet0_coords))
         LeadingJet_DR_arr = DeltaR(truthJet_coords, BoostedJet0_coords)
 
         # Find the deltaR for the leading jet
@@ -171,7 +178,12 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
             matched_jets.append([evt, LJ_DR_idx, SLJ_DR_idx])
             matched_jet_bool[i] = True
 
-    matched_jets = np.array(matched_jets)
+    # try to catch weird bug
+    if len(matched_jets) == 0:
+        raise ValueError('No matching jets')
+    else:
+        matched_jets = np.array(matched_jets)
+    
     t1 = cput()
     matched_jets_time = t1 - t0
     if Verbose:
@@ -328,14 +340,20 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
     ## 9)
     ## SAVE TRUTH ARRAY AND INPUT
     #-------------------------------------------------------------------------#
-    t0 = cput()
-    np.save(dest+array_prefix+'_X', X_all)
-    np.save(dest+array_prefix+'_Y', Yn)
-    t1 = cput()
-    save_array_time = t1 - t0
+    if X_all.shape == 0:
+        save_array_time = 0
+        if Verbose:
+            print('No values in array to save!')
     
-    if Verbose:
-        print(' {:6.2f} (s)'.format(save_array_time))
+    else:
+        t0 = cput()
+        np.save(dest+array_prefix+'_X', X_all)
+        np.save(dest+array_prefix+'_Y', Yn)
+        t1 = cput()
+        save_array_time = t1 - t0
+
+        if Verbose:
+            print(' {:6.2f} (s)'.format(save_array_time))
     #-------------------------------------------------------------------------#
 
             
@@ -346,7 +364,27 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
     time_t = load_time + twojets_cut_time + matched_jets_time + nan_time + \
         normalize_time + truth_var_time + input_array_time + save_array_time
     results_dict['total_time'] = time_t
+    results_dict['file'] = full_fpath
     results_dict['status'] = 'completed'
-    results_dict['errstring'] = None
+    results_dict['trace'] = None
     return results_dict
 
+
+def err_process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
+    ''' Add error handling to process_NTuples '''
+    
+    results_dict = dict()
+    try:
+        t0 = cput()
+        results_dict = process_NTuples(full_fpath, array_prefix, dest, Verbose)
+        
+    except Exception as exc:
+        t1 = cput()
+        results_dict['total_time'] = t1 - t0
+        results_dict['file'] = full_fpath
+        results_dict['status'] = 'failed'
+        results_dict['trace'] = traceback.format_exc()
+    
+    return results_dict
+        
+        
