@@ -12,12 +12,32 @@ Notes:
 import numpy as np
 import uproot as ur
 import awkward as ak
+import time as t
 import matplotlib.pyplot as plt
-import argparse, sys, os, subprocess, pickle, warnings
+import argparse, sys, os, subprocess, pickle, warnings, traceback
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 from array_production import process_NTuples, err_process_NTuples
 
+## DEFS ##
+def find_MC_num(_str):
+    spl_str = _str.split('.')
+    mSeaNum = None
+    for substr in spl_str:
+        if len(substr) == 6 and substr.isdigit():
+            mSeaNum = substr
+    return mSeaNum
+
+def find_MC_info(MCN, fname='PMGxsecDB_mc16.txt'):
+    MC_inf_arr = np.loadtxt(fname, skiprows=1, usecols=(0,2,3,4),
+                            dtype=float, encoding='ascii')
+    MCN_full = np.full(MC_inf_arr[:,0].shape, MCN, dtype=float)
+    row_idx = np.argmax(MCN_full == MC_inf_arr[:,0])
+    row = MC_inf_arr[row_idx,:]
+    _XS, _Eff, _kFact = row[1:]
+    return MCN, _XS, _Eff, _kFact
+
+## PRETTY OUTPUT ##
 print('\n===========================')
 print('==  HH4B MASS REGRESSION ==')
 print('==  Data Processing .... ==')
@@ -119,9 +139,34 @@ ls_dir_path = subprocess.run(cmd.split(), stdout=subprocess.PIPE)
 grep_root = subprocess.run('grep .root'.split(),
     input=ls_dir_path.stdout, stdout=subprocess.PIPE)
 
-file_list_raw = grep_root.stdout.decode('utf-8').split()
+# get a list of all the containers
+containers = grep_root.stdout.decode('utf-8').split()
 
-NAvailableFiles = len(file_list_raw)
+# loop through the containers and create a list with the files inside
+full_info_list = []
+for container in containers:
+    
+    MCnum = find_MC_num(container)
+    if MCnum is None:
+        raise ValueError('\nCould not find MC Number in container.\n')
+        
+    ls_container = subprocess.run('ls {}{}'.format(InDir, container).split(),
+                                    stdout=subprocess.PIPE)
+    grep_root = subprocess.run('grep .root'.split(),
+                              input=ls_container.stdout,
+                               stdout=subprocess.PIPE)
+    files_in_container = grep_root.stdout.decode('utf-8').split()
+    
+    for file in files_in_container:
+        full_info_list.append((container, file, MCnum))
+
+if Debug:
+    for tup_obj in full_info_list:
+        print('container: {}'.format(tup_obj[0]))
+        print('file inside: {}'.format(tup_obj[1]))
+        print('MCnum: {}'.format(tup_obj[2]))
+    
+NAvailableFiles = len(full_info_list)
 
 # Set NFiles
 if not NFiles is None:
@@ -152,45 +197,55 @@ if not NFiles is None:
         Processes = NFiles
     
 file_list_full = []
-for filename in file_list_raw:
-    file_list_full.append(InDir+filename.rstrip())
+for container, filename, emSeaNum in full_info_list:
+    file_list_full.append('{}{}/{}'.format(
+        InDir, container, filename.rstrip()))
 
 if (Verbose or Debug) and not Test:
     print('\nPrinting files in file list.')
     print('--'*20+'\n')
     for file in file_list_full:
         print(file)
-    print()
+    print('\n -- Number of files: {}\n\n'.format(len(file_list_full)))
 
+
+    
 
 #-----------------------------------#
 ## Run Distributed Data Processing ##
 #-----------------------------------#
 if Test:
+    tTest0 = t.time()
     # maybe just run one file here
     if Verbose:
         print('\nRunning in testing mode..')
         print('--'*20+'\n')
     
     results_dict_raw = dict()
-    results_returned = dict()
-    
+    results_returned = dict()    
     file = file_list_full[0]
+    
+    mcn = find_MC_num(file)  
+    MC_args = find_MC_info(mcn, fname='PMGxsecDB_mc16.txt')
+    arr_prefix = array_name+'.{}._{}'.format(mcn, 0)
+
     with ProcessPoolExecutor(max_workers=Workers) as e:
-        
-        arr_prefix = array_name+'_{}'.format(0)
 
         if Verbose:
             print('Submitting process_NTuples to ProcessPoolExecutor: [{}]'.format(0))
             print('    File: {}'.format(file))
             print('    Array prefix: {}'.format(arr_prefix))
-            print('    Destination: {}\n'.format(OutDir))
-
+            print('    Destination: {}'.format(OutDir))
+            print('    Monte-Carlo number: {}'.format(mcn))
+            print('    MC args: ({}, {}, {}, {}) -- (MCN, XS, kFact, Eff)\n'.format(
+                mcn, MC_args[0], MC_args[1], MC_args[2]))
+        
         results_dict_raw[0] = e.submit(process_NTuples, 
                                        full_fpath=file,
                                        array_prefix=arr_prefix,
                                        dest=OutDir,
-                                       Verbose=True
+                                       Verbose=True,
+                                       MCargs=MC_args
                                       )
 
     if Verbose:
@@ -203,11 +258,16 @@ if Test:
             print('Result type: {}'.format(type(res)))
             print('Result: {}'.format(res))
             print(res.result())
-    sys.exit('\nDone!\n')
+    tTest1 = t.time()
+    print('\nDone!')
+    sys.exit('  {:8.4f} (s)\n'.format(tTest1 - tTest0))
 
+if Debug:
+    sys.exit('\nExiting due to debugging mode.\n')
 
 ## PROCESSES ONLY
 if Processes and not Threading:
+    tp0 = t.time()
     if Verbose:
         print('\nRunning using processes only..')
         print('--'*20+'\n')
@@ -220,21 +280,28 @@ if Processes and not Threading:
         for i, file in enumerate(file_list_full):
             
             arr_prefix = array_name+'_{}'.format(i)
+            mcn = find_MC_num(file)        
+            MC_args = find_MC_info(mcn, fname='PMGxsecDB_mc16.txt')
+            arr_prefix = array_name+'.{}._{}'.format(mcn, i)
             
             if Verbose:
                 print('Submitting err_process_NTuples to '\
                       +'ProcessPoolExecutor: [{}]'.format(i))
                 print('    File: {}'.format(file))
                 print('    Array prefix: {}'.format(arr_prefix))
-                print('    Destination: {}\n'.format(OutDir))
+                print('    Destination: {}'.format(OutDir))
+                print('    Monte-Carlo number: {}'.format(mcn))
+                print('    MC args: ({}, {}, {}, {}) -- (MCN, XS, kFact, Eff)\n'.format(
+                    mcn, MC_args[0], MC_args[1], MC_args[2]))
                 
             results_dict_raw[i] = e.submit(err_process_NTuples, 
                                            full_fpath=file,
                                            array_prefix=arr_prefix,
-                                           dest=OutDir
+                                           dest=OutDir,
+                                           MCargs=MC_args
                                           )
         if Verbose:
-            print(' .. Waiting on ProcessPoolExecutor ..\n')
+            print('\n .. Waiting on ProcessPoolExecutor ..\n')
             
     if Verbose:
         print('Processes finished. Showing results!\n')
@@ -247,24 +314,43 @@ if Processes and not Threading:
             print('Result type: {}'.format(type(res)))
             print('Result: {}'.format(res))
             print(res.result())
+            
+    ## Save results as a dictionary
+    try:
+        with open('{}{}_dict.pickle'.format(OutDir, array_name),
+                  'wb') as picklefile:
+            pickle.dump(results_returned, picklefile)
+    except PickleError as pke:
+        warnings.warn('Unable to pickle file. Printing PickleError: \n')
+        print(traceback.format_exc())
+        print()
 
+    tp1 = t.time()
     if Verbose:
-        print('\n..Done!..\n')
+        print('\n..Done!..')
+        print('  {:8.4f} (s)\n'.format(tp1 - tp0))
 
 
 ## THREADS ONLY
-elif Threads and not Processes:
+elif Threading and not Processes:
     print('\nRunning using threads only..\n')
 
 
 ## PROCESSES AND THREADS
-elif Processes and Threads:
+elif Processes and Threading:
     print('\nRunning using processes and threads..\n')
 
 
 ## FOR LOOP
 else:
-    print('\nNo processes or threads selected..\n')
-
+    print('\nNo processes or threads selected..')
+    usr_in = input('Are you sure you would like to continue? (y/n)')
+    if not (usr_in == 'y' or usr_in == 'yes'):
+        sys.exit()
+    
+    tloop0 = t.time()
+    
+    tloop1 = t.time()
+        
 
     

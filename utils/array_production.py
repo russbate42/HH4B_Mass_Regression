@@ -33,8 +33,9 @@ script running
 import numpy as np
 import uproot as ur
 import awkward as ak
-import sys, os, subprocess, time, traceback
+import sys, os, subprocess, time, traceback, random
 from time import perf_counter as cput
+import time as t
 # import uproot as ur
 # import awkward as ak
 
@@ -50,7 +51,10 @@ from helpers import boostedJets_keys
 #=========================================================#
 ## ------------- The Business -------------------------- ##
 #=========================================================#
-def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
+def process_NTuples(full_fpath, array_prefix, dest, Verbose=False,
+                    MCargs=None, lumi=36.20766):
+    ''' hard code luminosity from 2015-2016 because that's what we are focusing
+    on for now. This number can change later. '''
     
     ## 1)
     ## DEFINE SUBSTRUCTURE VARIABLES ##
@@ -73,6 +77,8 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
     boostedJets_dict = dict_from_tree(MNTuple, boostedJets_keys,
                                       np_branches=None)
     truthJets_dict = dict_from_tree(MNTuple, truthJet_vars, np_branches=None)
+    mc_event_weights = ak.to_numpy(MNTuple.arrays(
+        filter_name='mcEventWeight')['mcEventWeight'])
     t1 = cput()
     load_time = t1 - t0
 
@@ -80,6 +86,15 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
     if Verbose:
         print('{} Events'.format(nEvents))
         print('Time to load arrays: {:8.4f} (s)'.format(load_time))
+    
+    ## 2.1)
+    ## UNPACK INFO REGARDING MC DATA and get the sum of weights!
+    if not MCargs is None:
+        MCN, XS, Eff, kFact = MCargs
+        
+    # This is hacky?
+    MetaData = uprooted['MetaData_EventCount_XhhMiniNtuple']
+    sum_of_weights = MetaData.to_numpy()[0][3]
     #-------------------------------------------------------------------------#
     
         
@@ -141,10 +156,6 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
             boostedJets_dict['boostedJets_eta'][evt][0],
             boostedJets_dict['boostedJets_phi'][evt][0]]
         )
-        if Verbose:
-            print('Truth Jet Coordinates: {}'.format(truthJet_coords))
-            print('Leading Boosted Jet Coordinates: {}'.format(
-                BoostedJet0_coords))
         LeadingJet_DR_arr = DeltaR(truthJet_coords, BoostedJet0_coords)
 
         # Find the deltaR for the leading jet
@@ -277,18 +288,18 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
         else: 
             boostedJets_normalized[key] = (np_slice - var_mean) / var_std
 
-        if Verbose:
-            print('-- {} --'.format(key))
-            print('-'*40)
-            print('mean: {}'.format(boostedJets_mean_std_dict[key][0]))
-            print('std: {}'.format(boostedJets_mean_std_dict[key][1]))
-            print()
+        # if Verbose:
+        #     print('-- {} --'.format(key))
+        #     print('-'*40)
+        #     print('mean: {}'.format(boostedJets_mean_std_dict[key][0]))
+        #     print('std: {}'.format(boostedJets_mean_std_dict[key][1]))
+        #     print()
 
     t1 = cput()
     normalize_time = t1 - t0
     if Verbose:
-        print('Finished constructing normalized dictionary!\n')
-        print(' {:6.2f} (s)'.format(normalize_time))
+        print('Finished constructing normalized dictionary!')
+        print(' {:6.2f} (s)\n'.format(normalize_time))
     #-------------------------------------------------------------------------#
     
     
@@ -311,9 +322,14 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
     Yn = (Y - 1e5) / 1e5 #this is in MeV
     t1 = cput()
     truth_var_time = t1 - t0
+
+    ## 7.1)
+    ## HANG ON TO MC EVENT WEIGHTS
+    mcEventWeight_sel = np.ndarray.copy(mc_event_weights[matched_jets[:,0]])
     
     if Verbose:
-        print(' {:6.2f} (s)'.format(truth_var_time))
+        print('Finished filling truth jets!')
+        print(' {:6.2f} (s)\n'.format(truth_var_time))
     #-------------------------------------------------------------------------#
 
 
@@ -333,11 +349,25 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
     input_array_time = t1 - t0
     
     if Verbose:
-        print(' {:6.2f} (s)'.format(input_array_time))
+        print('Finished filling input arrays!')
+        print(' {:6.2f} (s)\n'.format(input_array_time))
     #-------------------------------------------------------------------------#
     
     
-    ## 9)
+    ## 9.0)
+    ## DETERMINE SCALE FACTOR
+    #-------------------------------------------------------------------------#
+    SF = (lumi*XS*kFact*Eff)/sum_of_weights
+    if Verbose:
+        print('\nComputing SF')
+        print('Numerator (lumi*XS*kFact*Eff): {}'.format(lumi*XS*kFact*Eff))
+        print('Denominator: {}'.format(sum_of_weights))
+    N_mc = X_all.shape[0]
+    N_ph = round(SF*N_mc)
+    # idx_range = np.arange(N_mc)
+    # save_idc = np.random.choice(idx_range, size=(N_ph,), replace=False)
+    
+    ## 9.1)
     ## SAVE TRUTH ARRAY AND INPUT
     #-------------------------------------------------------------------------#
     if X_all.shape == 0:
@@ -349,6 +379,7 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
         t0 = cput()
         np.save(dest+array_prefix+'_X', X_all)
         np.save(dest+array_prefix+'_Y', Yn)
+        np.save(dest+array_prefix+'_mc', mcEventWeight_sel)
         t1 = cput()
         save_array_time = t1 - t0
 
@@ -367,23 +398,51 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
     results_dict['file'] = full_fpath
     results_dict['status'] = 'completed'
     results_dict['trace'] = None
+    results_dict['SF'] = SF
+    results_dict['N_mc'] = N_mc
+    results_dict['N_ph'] = N_ph
+    results_dict['MCN'] = MCN
+    results_dict['XS'] = XS
+    results_dict['kFact'] = kFact
+    results_dict['Eff'] = Eff
     return results_dict
 
 
-def err_process_NTuples(full_fpath, array_prefix, dest, Verbose=False):
+def err_process_NTuples(full_fpath, array_prefix, dest, Verbose=False,
+                       MCargs=None):
     ''' Add error handling to process_NTuples '''
     
     results_dict = dict()
+    start_time = t.time()
     try:
         t0 = cput()
-        results_dict = process_NTuples(full_fpath, array_prefix, dest, Verbose)
+        if MCargs is None:
+            results_dict = process_NTuples(full_fpath, array_prefix, dest, Verbose)
+        else:
+            results_dict = process_NTuples(full_fpath, array_prefix, dest, Verbose,
+                                          MCargs=MCargs)
+        results_dict['start_time'] = start_time
+        results_dict['end_time'] = t.time()
         
     except Exception as exc:
         t1 = cput()
+        
+        if not MCargs is None:
+            MCN, XS, Eff, kFact = MCargs
+        
+        results_dict['start_time'] = start_time
         results_dict['total_time'] = t1 - t0
         results_dict['file'] = full_fpath
         results_dict['status'] = 'failed'
         results_dict['trace'] = traceback.format_exc()
+        results_dict['SF'] = None
+        results_dict['N_mc'] = None
+        results_dict['N_ph'] = None
+        results_dict['MCN'] = MCN
+        results_dict['XS'] = XS
+        results_dict['kFact'] = kFact
+        results_dict['Eff'] = Eff
+        results_dict['end_time'] = t.time()
     
     return results_dict
         
