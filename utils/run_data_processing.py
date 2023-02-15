@@ -9,7 +9,8 @@ email: russell.bate@cern.ch, russellbate@phas.ubc.ca
 Notes: For now we process the files in a loop. In the future, we will work on creating
 a multiprocess executor.
 
-* TO-DO: Pass the messages into boostedJet_root_to_numpy.py 
+* TO-DO: Pass the messages into boostedJet_root_to_numpy.py
+Notes: Remove this in the future
 '''
 
 

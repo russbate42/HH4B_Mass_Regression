@@ -21,6 +21,8 @@ boostedJets_keys are ONLY the keys which we care about (other entries have null 
 boostedJets_normalized will contain all the normalized arrays WITH EVENT SELECTION APPLIED!!!
 boostedJets_mean_std_dict will contain all the mean and standard deviations
 
+Note we need to keep track of the **sum of the sum of weights** when we scale to more files
+
 * TO-DO: We need to fix the normalized variable dictionary somewhere else and load it here.
 Currently it is implemented as-is in the jupyter notebook because we just want to get the
 script running
@@ -36,8 +38,6 @@ import awkward as ak
 import sys, os, subprocess, time, traceback, random
 from time import perf_counter as cput
 import time as t
-# import uproot as ur
-# import awkward as ak
 
 cwd = os.getcwd()
 path_head, path_tail = os.path.split(cwd)
@@ -322,10 +322,6 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False,
     Yn = (Y - 1e5) / 1e5 #this is in MeV
     t1 = cput()
     truth_var_time = t1 - t0
-
-    ## 7.1)
-    ## HANG ON TO MC EVENT WEIGHTS
-    mcEventWeight_sel = np.ndarray.copy(mc_event_weights[matched_jets[:,0]])
     
     if Verbose:
         print('Finished filling truth jets!')
@@ -344,7 +340,7 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False,
         # leading jet, take the 0th index
         X_all[:,j] = boostedJets_normalized[key][:,0]
         # subleading jet
-        X_all[:,j+Nvars-1] = boostedJets_normalized[key][:,1]
+        X_all[:,j+Nvars] = boostedJets_normalized[key][:,1]
     t1 = cput()
     input_array_time = t1 - t0
     
@@ -364,8 +360,11 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False,
         print('Denominator: {}'.format(sum_of_weights))
     N_mc = X_all.shape[0]
     N_ph = round(SF*N_mc)
-    # idx_range = np.arange(N_mc)
-    # save_idc = np.random.choice(idx_range, size=(N_ph,), replace=False)
+    
+    ## 9.1)
+    ## Scale mc_event_weights by
+    mcEventWeight_sel_sc = np.ndarray.copy(
+        mc_event_weights[matched_jets[:,0]] * SF)
     
     ## 9.1)
     ## SAVE TRUTH ARRAY AND INPUT
@@ -379,7 +378,7 @@ def process_NTuples(full_fpath, array_prefix, dest, Verbose=False,
         t0 = cput()
         np.save(dest+array_prefix+'_X', X_all)
         np.save(dest+array_prefix+'_Y', Yn)
-        np.save(dest+array_prefix+'_mc', mcEventWeight_sel)
+        np.save(dest+array_prefix+'_mc', mcEventWeight_sel_sc)
         t1 = cput()
         save_array_time = t1 - t0
 

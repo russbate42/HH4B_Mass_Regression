@@ -206,7 +206,7 @@ if (Verbose or Debug) and not Test:
     print('--'*20+'\n')
     for file in file_list_full:
         print(file)
-    print('\n -- Number of files: {}\n\n'.format(len(file_list_full)))
+    print('\n -- Number of files: {}\n'.format(len(file_list_full)))
 
 
     
@@ -344,7 +344,7 @@ elif Processes and Threading:
 ## FOR LOOP
 else:
     print('\nNo processes or threads selected..')
-    usr_in = input('Are you sure you would like to continue? (y/n)')
+    usr_in = input('Are you sure you would like to continue? (y/n)\n')
     if not (usr_in == 'y' or usr_in == 'yes'):
         sys.exit()
     
