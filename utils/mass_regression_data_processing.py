@@ -73,7 +73,7 @@ parser.add_argument('--threading', dest='threading', default=False,
     help='Uses multi-threading.')
 parser.add_argument('--threads', dest='threads', default=1,
     type=int, action='store',
-    help='Number of threads to use per core.')
+    help='Number of threads to use.')
 parser.add_argument('--processes', dest='processes', default=False,
     action='store_true',
     help='Uses multiple CPUs.')
@@ -265,11 +265,13 @@ if Test:
 if Debug:
     sys.exit('\nExiting due to debugging mode.\n')
 
-## PROCESSES ONLY
+
+## PROCESSES ONLY -------------------------------------------------------------
 if Processes and not Threading:
     tp0 = t.time()
     if Verbose:
         print('\nRunning using processes only..')
+        print(' -- {} CPUs'.format(Workers))
         print('--'*20+'\n')
     
     results_dict_raw = dict()
@@ -302,7 +304,7 @@ if Processes and not Threading:
                                           )
         if Verbose:
             print('\n .. Waiting on ProcessPoolExecutor ..\n')
-            
+
     if Verbose:
         print('Processes finished. Showing results!\n')
 
@@ -314,24 +316,30 @@ if Processes and not Threading:
             print('Result type: {}'.format(type(res)))
             print('Result: {}'.format(res))
             print(res.result())
-            
+
+
+    tp1 = t.time()
+    results_returned['total_time'] = tp1 - tp0
     ## Save results as a dictionary
     try:
-        with open('{}{}_dict.pickle'.format(OutDir, array_name),
-                  'wb') as picklefile:
+        pklfilename = '{}{}_multiprocess-{}_dict.pickle'.format(OutDir,
+            array_name, Workers)
+
+        with open(pklfilename, 'wb') as picklefile:
             pickle.dump(results_returned, picklefile)
+
     except PickleError as pke:
         warnings.warn('Unable to pickle file. Printing PickleError: \n')
         print(traceback.format_exc())
         print()
 
-    tp1 = t.time()
     if Verbose:
         print('\n..Done!..')
         print('  {:8.4f} (s)\n'.format(tp1 - tp0))
+#==============================================================================
 
 
-## THREADS ONLY
+## THREADS ONLY ---------------------------------------------------------------
 elif Threading and not Processes:
     print('\nRunning using threads only..\n')
 
